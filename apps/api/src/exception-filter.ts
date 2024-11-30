@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { captureException } from '@sentry/node';
 import { ZodError } from 'zod';
 import { InternalServerErrorException } from '@nestjs/common/exceptions/internal-server-error.exception';
+import { ProcessBulkTriggerCommand } from './app/events/usecases/process-bulk-trigger';
 
 export class AllExceptionsFilter implements ExceptionFilter {
   constructor(private readonly logger: PinoLogger) {}
@@ -45,16 +46,72 @@ export class AllExceptionsFilter implements ExceptionFilter {
     return this.build500Error(exception, responseBody);
   }
 
-  private build500Error(
-    exception: unknown,
-    responseBody: {
-      path: string;
-      message: string | object | Object;
-      statusCode: number;
-      timestamp: string;
-    }
-  ) {
+  private build500Error(exception: unknown, responseBody: ErrorResponseBody) {
     const uuid = this.getUuid(exception);
+    this.logError(uuid, exception);
+
+    return { ...responseBody, errorId: uuid };
+  }
+
+  private buildBaseResponseBody(
+    status: number,
+    request: Request,
+    message: string | object | Object
+  ): ErrorResponseBody {
+    return {
+      statusCode: status,
+      timestamp: new Date().toISOString(),
+      path: request.url,
+      message,
+    };
+  }
+
+  private getResponseMetadata(exception: unknown): ResponseMetadata {
+    let status: number;
+    let message: string | object;
+
+    if (exception instanceof ZodError) {
+      return handleZod(exception);
+    }
+    if (exception instanceof ZodError) {
+      return handleZod(exception);
+    }
+    if (exception instanceof CommandValidationException) {
+      return this.handleCommandValidation(exception);
+    }
+
+    if (exception instanceof HttpException && !(exception instanceof InternalServerErrorException)) {
+      status = exception.getStatus();
+      message = exception.getResponse();
+
+      return { status, message };
+    }
+
+    return {
+      status: HttpStatus.INTERNAL_SERVER_ERROR,
+      message: `Internal server error, contact support and provide them with the errorId`,
+    };
+  }
+  private handleCommandValidation(exception: CommandValidationException): ResponseMetadata {
+    const DO_NOT_TRACK_CLASSES = [ProcessBulkTriggerCommand.name];
+
+    let uuid: string | undefined;
+    if (!DO_NOT_TRACK_CLASSES.includes(exception.className)) {
+      uuid = this.getUuid(exception);
+      this.logError(uuid, exception);
+    }
+
+    return {
+      message: {
+        message: exception.message,
+        cause: exception.constraintsViolated,
+        uuid,
+      },
+      status: HttpStatus.BAD_REQUEST,
+    };
+  }
+
+  private logError(uuid: string, exception: unknown) {
     this.logger.error(
       {
         errorId: uuid,
@@ -69,44 +126,6 @@ export class AllExceptionsFilter implements ExceptionFilter {
       `Unexpected exception thrown`,
       'Exception'
     );
-
-    return { ...responseBody, errorId: uuid };
-  }
-
-  private buildBaseResponseBody(status: number, request: Request, message: string | object | Object) {
-    return {
-      statusCode: status,
-      timestamp: new Date().toISOString(),
-      path: request.url,
-      message,
-    };
-  }
-
-  private getResponseMetadata(exception: unknown): { status: number; message: string | object | Object } {
-    let status: number;
-    let message: string | object;
-
-    if (exception instanceof ZodError) {
-      return handleZod(exception);
-    }
-    if (exception instanceof ZodError) {
-      return handleZod(exception);
-    }
-    if (exception instanceof CommandValidationException) {
-      return handleCommandValidation(exception);
-    }
-
-    if (exception instanceof HttpException && !(exception instanceof InternalServerErrorException)) {
-      status = exception.getStatus();
-      message = exception.getResponse();
-
-      return { status, message };
-    }
-
-    return {
-      status: HttpStatus.INTERNAL_SERVER_ERROR,
-      message: `Internal server error, contact support and provide them with the errorId`,
-    };
   }
 
   private getUuid(exception: unknown) {
@@ -149,23 +168,13 @@ function handleZod(exception: ZodError) {
 
   return { status, message };
 }
-
-function handleCommandValidation(exception: CommandValidationException) {
-  const { mappedErrors } = exception;
-  const { message } = exception;
-
-  return { message: { message, cause: mappedErrors }, status: HttpStatus.BAD_REQUEST };
+class ResponseMetadata {
+  status: number;
+  message: string | object | Object;
 }
-class MongoServerError {
-  code: number;
-  errmsg: string;
-  ok: number;
-  writeErrors?: {
-    index: number;
-    code: number;
-    errmsg: string;
-    op: any;
-  }[];
-  operationTime?: string;
-  clusterTime?: string;
+class ErrorResponseBody {
+  path: string;
+  message: string | object | Object;
+  statusCode: number;
+  timestamp: string;
 }

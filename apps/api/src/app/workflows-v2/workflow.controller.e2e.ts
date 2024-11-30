@@ -15,6 +15,7 @@ import {
   slugify,
   StepContentIssueEnum,
   StepCreateDto,
+  StepResponseDto,
   StepDataDto,
   StepIssueEnum,
   StepTypeEnum,
@@ -168,8 +169,7 @@ describe('Workflow Controller E2E API Testing', () => {
         expect(res.error?.responseText).to.include("All tags's elements must be unique");
       });
 
-      // TODO: fix use of `ArrayMaxSize` decorator in `{Create,Update}WorkflowCommand`
-      it.skip('should respond with 400 when more than 16 tags are provided', async () => {
+      it('should respond with 400 when more than 16 tags are provided', async () => {
         const createWorkflowDto: CreateWorkflowDto = buildCreateWorkflowDto('nameSuffix', {
           tags: Array.from({ length: 17 }).map((_, index) => `tag${index}`),
         });
@@ -181,23 +181,38 @@ describe('Workflow Controller E2E API Testing', () => {
     });
 
     describe('Workflow Step Body Issues', () => {
-      it('should show name issue when missing', async () => {
-        const { issues, status } = await createWorkflowAndReturnStepIssues(
-          { steps: [{ ...buildEmailStep(), name: '' }] },
-          0
-        );
-        expect(status).to.be.equal(WorkflowStatusEnum.ERROR);
-        expect(issues).to.be.ok;
-        if (issues.body) {
-          expect(issues.body).to.be.ok;
-          expect(issues.body.name).to.be.ok;
-          expect(issues.body.name?.issueType, JSON.stringify(issues)).to.be.equal(StepIssueEnum.MISSING_REQUIRED_VALUE);
+      it('should throw 400 on name missing', async () => {
+        // @ts-ignore
+        const overrideDto = { steps: [{ ...buildEmailStep(), name: undefined } as unknown as StepCreateDto] };
+        const createWorkflowDto: CreateWorkflowDto = buildCreateWorkflowDto('nameSuffix');
+        const dtoWithoutName = { ...createWorkflowDto, ...overrideDto };
+
+        const res = await workflowsClient.createWorkflow(dtoWithoutName);
+        if (res.isSuccessResult()) {
+          throw new Error(`should fail${JSON.stringify(res.value)}`);
         }
+        expect(res.error?.responseText, res.error?.responseText).to.contain('name');
+      });
+      it('should throw 400 on name empty', async () => {
+        // @ts-ignore
+        const overrideDto = { steps: [{ ...buildEmailStep(), name: '' } as unknown as StepCreateDto] };
+        const createWorkflowDto: CreateWorkflowDto = buildCreateWorkflowDto('nameSuffix');
+        const dtoWithoutName = { ...createWorkflowDto, ...overrideDto };
+
+        const res = await workflowsClient.createWorkflow(dtoWithoutName);
+        if (res.isSuccessResult()) {
+          throw new Error(`should fail${JSON.stringify(res.value)}`);
+        }
+        expect(res.error?.responseText, res.error?.responseText).to.contain('name');
       });
 
       it('should remove issues when no longer', async () => {
-        const inAppStep = { ...buildInAppStep(), controlValues: { body: 'some body here' }, name: '' };
+        const inAppStep = { ...buildInAppStep(), controlValues: {}, name: 'some name' };
         const workflowCreated = await createWorkflowAndReturn({ steps: [inAppStep] });
+        const firstStepIssues = workflowCreated.steps[0].issues;
+        expect(firstStepIssues).to.be.ok;
+        expect(firstStepIssues?.controls?.body).to.be.ok;
+        expect(firstStepIssues?.controls?.body[0].issueType).to.be.eq(StepContentIssueEnum.MISSING_VALUE);
         const novuRestResult = await workflowsClient.updateWorkflow(workflowCreated._id, {
           ...workflowCreated,
           steps: [{ ...inAppStep, name: 'New Name', controlValues: { body: 'some body here' } }],
