@@ -5,7 +5,6 @@ import { randomUUID } from 'node:crypto';
 import { captureException } from '@sentry/node';
 import { ZodError } from 'zod';
 import { InternalServerErrorException } from '@nestjs/common/exceptions/internal-server-error.exception';
-import { ProcessBulkTriggerCommand } from './app/events/usecases/process-bulk-trigger';
 
 export class AllExceptionsFilter implements ExceptionFilter {
   constructor(private readonly logger: PinoLogger) {}
@@ -14,65 +13,54 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
-    const { status, message } = this.getResponseMetadata(exception);
-    const responseBody = this.buildResponseBody(status, request, message, exception);
+    const responseMetadata = this.getResponseMetadata(exception);
+    const responseBody = this.buildResponseBody(request, responseMetadata, exception);
 
-    response.status(status).json(responseBody);
+    response.status(responseMetadata.status).json(responseBody);
   }
 
-  private buildResponseBody(
-    status: number,
-    request: Request,
-    message: string | object | Object,
-    exception: unknown
-  ): ErrorDto {
-    const responseBody = this.buildBaseResponseBody(status, request, message);
-    if (status !== HttpStatus.INTERNAL_SERVER_ERROR) {
-      const error = message instanceof Object ? { ...responseBody, ...message } : responseBody;
-      this.logger.error({
-        /**
-         * It's important to use `err` as the key, pino (the logger we use) will
-         * log an empty object if the key is not `err`
-         *
-         * @see https://github.com/pinojs/pino/issues/819#issuecomment-611995074
-         */
-        err: exception,
-        error,
-      });
-
-      return error;
+  private buildResponseBody(request: Request, responseMetadata: ResponseMetadata, exception: unknown): ErrorDto {
+    const responseBody = this.buildBaseResponseBody(request, responseMetadata);
+    if (responseMetadata.status === HttpStatus.INTERNAL_SERVER_ERROR) {
+      return this.logAndBuild500Error(exception, responseBody);
     }
 
-    return this.build500Error(exception, responseBody);
+    return this.logAndBuildOtherErrors(responseBody, exception);
   }
 
-  private build500Error(exception: unknown, responseBody: ErrorResponseBody) {
+  private logAndBuildOtherErrors(responseBody: ErrorResponseBody, exception: unknown) {
+    this.logger.error({
+      /**
+       * It's important to use `err` as the key, pino (the logger we use) will
+       * log an empty object if the key is not `err`
+       *
+       * @see https://github.com/pinojs/pino/issues/819#issuecomment-611995074
+       */
+      err: exception,
+      error: responseBody,
+    });
+
+    return responseBody;
+  }
+
+  private logAndBuild500Error(exception: unknown, responseBody: ErrorResponseBody) {
     const uuid = this.getUuid(exception);
     this.logError(uuid, exception);
 
     return { ...responseBody, errorId: uuid };
   }
 
-  private buildBaseResponseBody(
-    status: number,
-    request: Request,
-    message: string | object | Object
-  ): ErrorResponseBody {
+  private buildBaseResponseBody(request: Request, responseMetadata: ResponseMetadata): ErrorResponseBody {
     return {
-      statusCode: status,
+      statusCode: responseMetadata.status,
       timestamp: new Date().toISOString(),
       path: request.url,
-      message,
+      message: responseMetadata.message,
+      ctx: responseMetadata.ctx,
     };
   }
 
   private getResponseMetadata(exception: unknown): ResponseMetadata {
-    let status: number;
-    let message: string | object;
-
-    if (exception instanceof ZodError) {
-      return handleZod(exception);
-    }
     if (exception instanceof ZodError) {
       return handleZod(exception);
     }
@@ -81,10 +69,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     if (exception instanceof HttpException && !(exception instanceof InternalServerErrorException)) {
-      status = exception.getStatus();
-      message = exception.getResponse();
-
-      return { status, message };
+      return this.handleOtherHttpExceptions(exception);
     }
 
     return {
@@ -92,20 +77,21 @@ export class AllExceptionsFilter implements ExceptionFilter {
       message: `Internal server error, contact support and provide them with the errorId`,
     };
   }
-  private handleCommandValidation(exception: CommandValidationException): ResponseMetadata {
-    const DO_NOT_TRACK_CLASSES = [ProcessBulkTriggerCommand.name];
 
-    let uuid: string | undefined;
-    if (!DO_NOT_TRACK_CLASSES.includes(exception.className)) {
+  private handleOtherHttpExceptions(exception: HttpException): ResponseMetadata {
+    const status = exception.getStatus();
+    if (typeof exception.getResponse() === 'string') {
+      return { status, message: exception.getResponse() as string };
+    } else {
+      return { status, message: `Api Exception Raised with status ${status}`, ctx: exception.getResponse() };
     }
+  }
 
+  private handleCommandValidation(exception: CommandValidationException): ResponseMetadata {
     return {
-      message: {
-        message: exception.message,
-        cause: exception.constraintsViolated,
-        uuid,
-      },
+      message: exception.message,
       status: HttpStatus.BAD_REQUEST,
+      ctx: { cause: exception.constraintsViolated },
     };
   }
 
@@ -157,22 +143,24 @@ export class ErrorDto {
 
 function handleZod(exception: ZodError) {
   const status = HttpStatus.BAD_REQUEST; // Set appropriate status for ZodError
-  const message = {
+  const ctx = {
     errors: exception.errors.map((err) => ({
       message: err.message,
       path: err.path,
     })),
   };
 
-  return { status, message };
+  return { status, message: 'Zod Validation Failed', ctx };
 }
 class ResponseMetadata {
   status: number;
-  message: string | object | Object;
+  message: string;
+  ctx?: object | Object;
 }
 class ErrorResponseBody {
   path: string;
   message: string | object | Object;
   statusCode: number;
   timestamp: string;
+  ctx?: object | Object;
 }

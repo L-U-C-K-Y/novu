@@ -15,9 +15,7 @@ import {
   slugify,
   StepContentIssueEnum,
   StepCreateDto,
-  StepResponseDto,
   StepDataDto,
-  StepIssueEnum,
   StepTypeEnum,
   StepUpdateDto,
   UpdateStepBody,
@@ -454,9 +452,8 @@ describe('Workflow Controller E2E API Testing', () => {
       if (!novuRestResult.isSuccessResult()) {
         throw new Error('should not fail to get list ');
       }
-      const data = novuRestResult.value;
 
-      return data;
+      return novuRestResult.value;
     }
 
     async function getV2WorkflowIdAndExternalId(uuid: string) {
@@ -469,8 +466,8 @@ describe('Workflow Controller E2E API Testing', () => {
     }
 
     async function create3V1Workflows() {
-      let workflowV1Created = await createV1Workflow();
-      workflowV1Created = await createV1Workflow();
+      await createV1Workflow();
+      await createV1Workflow();
 
       return await createV1Workflow();
     }
@@ -502,7 +499,6 @@ describe('Workflow Controller E2E API Testing', () => {
       devWorkflow = await getWorkflowRest(devWorkflow._id);
 
       // Switch to production environment and get its ID
-      const devEnvironmentId = session.environment._id;
       await session.switchToProdEnvironment();
       const prodEnvironmentId = session.environment._id;
       await session.switchToDevEnvironment();
@@ -1029,14 +1025,6 @@ describe('Workflow Controller E2E API Testing', () => {
       expect(step.type, stringify(step)).to.be.equal(stepInRequest.type);
       expect(Object.keys(step.issues?.body || {}).length, stringify(step)).to.be.eq(0);
     }
-  }
-
-  async function createWorkflowAndReturnIssues(overrideDto: Partial<CreateWorkflowDto>) {
-    const workflowCreated = await createWorkflowAndReturn(overrideDto);
-    const { issues } = workflowCreated;
-    expect(issues, JSON.stringify(workflowCreated)).to.be.ok;
-
-    return issues;
   }
 
   async function createWorkflowAndReturn(
