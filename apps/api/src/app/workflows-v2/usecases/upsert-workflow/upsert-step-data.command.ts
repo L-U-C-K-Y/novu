@@ -2,7 +2,7 @@ import { IsEnum, IsNotEmpty, IsOptional, IsString, Length } from 'class-validato
 import { MAX_NAME_LENGTH } from '@novu/application-generic';
 import { StepTypeEnum } from '@novu/shared';
 
-export class UpsertStepData {
+export class UpsertStepDataCommand {
   @IsString()
   @IsNotEmpty()
   @Length(1, MAX_NAME_LENGTH)

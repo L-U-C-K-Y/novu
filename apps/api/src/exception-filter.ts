@@ -97,8 +97,6 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     let uuid: string | undefined;
     if (!DO_NOT_TRACK_CLASSES.includes(exception.className)) {
-      uuid = this.getUuid(exception);
-      this.logError(uuid, exception);
     }
 
     return {

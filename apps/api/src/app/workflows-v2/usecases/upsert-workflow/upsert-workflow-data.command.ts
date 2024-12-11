@@ -12,23 +12,23 @@ import {
 import { Type } from 'class-transformer';
 import { MAX_NAME_LENGTH } from '@novu/application-generic';
 import { WorkflowCreationSourceEnum } from '@novu/shared';
-import { UpsertStepData } from './upsert-step.data';
-import { PreferencesRequestUpsertData } from './preferences-request-upsert.data';
+import { UpsertStepDataCommand } from './upsert-step-data.command';
+import { PreferencesRequestUpsertDataCommand } from './preferences-request-upsert-data.command';
 
-export class UpsertWorkflowDto {
+export class UpsertWorkflowDataCommand {
   @IsString()
   @IsOptional()
   workflowId?: string;
 
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => UpsertStepData)
-  steps: UpsertStepData[];
+  @Type(() => UpsertStepDataCommand)
+  steps: UpsertStepDataCommand[];
 
   @IsOptional()
   @ValidateNested()
-  @Type(() => PreferencesRequestUpsertData)
-  preferences?: PreferencesRequestUpsertData;
+  @Type(() => PreferencesRequestUpsertDataCommand)
+  preferences?: PreferencesRequestUpsertDataCommand;
 
   @IsString()
   @IsNotEmpty()

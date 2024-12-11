@@ -15,8 +15,6 @@ import {
   SystemAvatarIconEnum,
   TemplateVariableTypeEnum,
 } from '@novu/shared';
-
-import { AxiosError } from 'axios';
 import { mapToDto } from '../utils/notification-mapper';
 
 describe('Update Notification Action - /inbox/notifications/:id/{complete/revert} (PATCH)', async () => {
@@ -110,15 +108,6 @@ describe('Update Notification Action - /inbox/notifications/:id/{complete/revert
       _templateId: template._id,
     })) as MessageEntity;
   });
-  function assertValidationMessages(e: AxiosError<any, any>, field: string, msg1: string) {
-    if (!(e instanceof AxiosError)) {
-      throw new Error(e);
-    }
-    console.log(JSON.stringify(e.response?.data));
-    const messages = e.response?.data.cause[field].messages;
-
-    expect(messages).to.be.an('array').that.includes(msg1);
-  }
 
   it('should throw bad request error when the notification id is not mongo id', async function () {
     const id = 'fake';

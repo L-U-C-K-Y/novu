@@ -32,7 +32,7 @@ import { stepTypeToControlSchema } from '../../shared';
 import { PatchStepUsecase } from '../patch-step-data';
 import { PostProcessWorkflowUpdate } from '../post-process-workflow-update';
 import { GetWorkflowCommand, GetWorkflowUseCase } from '../get-workflow';
-import { UpsertWorkflowDto } from './upsert-workflow.dto';
+import { UpsertWorkflowDataCommand } from './upsert-workflow-data.command';
 
 @Injectable()
 export class UpsertWorkflowUseCase {
@@ -327,7 +327,7 @@ export class UpsertWorkflowUseCase {
   }
 }
 
-function isWorkflowUpdateDto(workflowDto: UpsertWorkflowDto, id?: string): workflowDto is UpdateWorkflowDto {
+function isWorkflowUpdateDto(workflowDto: UpsertWorkflowDataCommand, id?: string): workflowDto is UpdateWorkflowDto {
   return !!id;
 }
 

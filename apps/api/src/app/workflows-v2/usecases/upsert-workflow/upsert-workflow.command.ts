@@ -1,7 +1,7 @@
 import { EnvironmentWithUserObjectCommand } from '@novu/application-generic';
 import { IsOptional, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
-import { UpsertWorkflowDto } from './upsert-workflow.dto';
+import { UpsertWorkflowDataCommand } from './upsert-workflow-data.command';
 
 export class UpsertWorkflowCommand extends EnvironmentWithUserObjectCommand {
   @IsOptional()
@@ -9,6 +9,6 @@ export class UpsertWorkflowCommand extends EnvironmentWithUserObjectCommand {
   workflowIdOrInternalId?: string;
 
   @ValidateNested()
-  @Type(() => UpsertWorkflowDto)
-  workflowDto: UpsertWorkflowDto;
+  @Type(() => UpsertWorkflowDataCommand)
+  workflowDto: UpsertWorkflowDataCommand;
 }
