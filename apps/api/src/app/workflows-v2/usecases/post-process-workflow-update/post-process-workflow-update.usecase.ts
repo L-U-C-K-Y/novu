@@ -9,10 +9,9 @@ import {
   WorkflowResponseDto,
   WorkflowStatusEnum,
 } from '@novu/shared';
-import { NotificationStepEntity, NotificationTemplateRepository } from '@novu/dal';
+import { NotificationStepEntity, NotificationTemplateRepository, RuntimeIssue } from '@novu/dal';
 import { Injectable } from '@nestjs/common';
 import { Instrument, InstrumentUsecase, WorkflowInternalResponseDto } from '@novu/application-generic';
-import { RuntimeIssue } from '@novu/dal/src';
 import { PostProcessWorkflowUpdateCommand } from './post-process-workflow-update.command';
 import { OverloadContentDataOnWorkflowUseCase } from '../overload-content-data';
 
